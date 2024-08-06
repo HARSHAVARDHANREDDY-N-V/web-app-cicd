@@ -1,0 +1,18 @@
+{
+  "family": "task-def-fam",
+  "containerDefinitions": [
+    {
+      "name": "ECS-CICD",
+      "image": "my-ecr-repo:${{ github.sha }}",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 80,
+          "hostPort": 80
+        }
+      ],
+      "memory": 512,
+      "cpu": 256
+    }
+  ]
+}

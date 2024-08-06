@@ -1,0 +1,73 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Log in to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build, tag, and push image to Amazon ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: my-ecr-repo
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Deploy to Amazon ECS
+        id: deploy-ecs
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: ecs-task-def.json
+          service: web-app-cicd-ecs-service
+          cluster: DevCluster
+          wait-for-service-stability: true
+
+  integration_tests:
+    needs: deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Run integration tests
+        run: |
+          # Your integration tests here
+          echo "Running integration tests..."
+          # Simulate a test failure for demonstration purposes
+          exit 1
+
+  rollback:
+    if: failure()
+    needs: integration_tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Rollback deployment
+        uses: aws-actions/amazon-ecs-update-service@v1
+        with:
+          cluster: DevCluster
+          service: web-app-cicd-ecs-service
+          force-new-deployment: true
